@@ -7,10 +7,10 @@ import time
 
 okx_client = OKXExchange()
 indicators = TechnicalIndicators()
-leverage = os.getenv("LEVERAGE", 5)
-grid_leverage = os.getenv("GRID_LEVERAGE", 5)
-amount = os.getenv("AMOUNT", 200)
-grid_amount = os.getenv("GRID_AMOUNT", 300)
+leverage = int(os.getenv("LEVERAGE", "5"))
+grid_leverage = int(os.getenv("GRID_LEVERAGE", "5"))
+amount = float(os.getenv("AMOUNT", "200"))
+grid_amount = float(os.getenv("GRID_AMOUNT", "300"))
 def main():
     start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     print(f'开始执行策略：{start_time}')
