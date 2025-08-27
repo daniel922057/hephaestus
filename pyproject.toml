@@ -1,0 +1,13 @@
+[project]
+name = "hephaestus"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy<2.0",
+    "pandas-ta>=0.3.14b0",
+    "python-okx>=0.4.0",
+    "schedule>=1.2.2",
+    "setuptools<81",
+]
