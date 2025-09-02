@@ -57,6 +57,7 @@ class OKXExchange:
             api_key=self.api_key,
             api_secret_key=self.secret_key,
             passphrase=self.passphrase,
+            debug=True,
             flag=self.flag
         )
     
@@ -254,8 +255,8 @@ class OKXExchange:
                 minPx = price - 4 * atr
                 maxPx = price + 2 * atr
             # 创建网格的逻辑
-            slTriggerPx = minPx if direction == 'long' else maxPx
-            tpTriggerPx = maxPx if direction == 'long' else minPx
+            slTriggerPx = minPx-100 if direction == 'long' else maxPx+100
+            tpTriggerPx = maxPx + 100 if direction == 'long' else minPx- 100
             result = self.grid.grid_order_algo(
                 instId=symbol,
                 algoOrdType='contract_grid',  # 网格订单类型
