@@ -249,11 +249,11 @@ class OKXExchange:
             maxPx = 0
             minPx = 0
             if direction == 'long':
-                minPx = price - 2 * atr
-                maxPx = price + 4 * atr
+                minPx = price - 3 * atr
+                maxPx = price + 6 * atr
             else:
-                minPx = price - 4 * atr
-                maxPx = price + 2 * atr
+                minPx = price - 6 * atr
+                maxPx = price + 3 * atr
             # 创建网格的逻辑
             slTriggerPx = minPx-100 if direction == 'long' else maxPx+100
             tpTriggerPx = maxPx + 100 if direction == 'long' else minPx- 100
