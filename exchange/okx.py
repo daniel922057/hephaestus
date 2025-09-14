@@ -125,8 +125,9 @@ class OKXExchange:
                     'volume': float(item[5]),   # 交易量
                     'currency_volume': float(item[6])  # 交易额
                 }
-                if int(item[8]) == 1:
-                    parsed_data.append(kline)
+                # if int(item[8]) == 1:
+                #     parsed_data.append(kline)
+                parsed_data.append(kline)
         
         return parsed_data
 
@@ -262,7 +263,7 @@ class OKXExchange:
                 algoOrdType='contract_grid',  # 网格订单类型
                 maxPx=str(maxPx),  # 上限价格
                 minPx=str(minPx),  # 下限价格
-                gridNum=str(10),  # 网格数量
+                gridNum=str(30),  # 网格数量
                 runType='1',  # 运行类型：1=立即运行
                 sz=str(amount),  # 计价币数量（USDT）
                 direction=direction,  # 方向
@@ -330,5 +331,22 @@ class OKXExchange:
         slTriggerPx = current_price * 0.9 if direction == 'long' else  current_price*1.1
         attachAlgoOrds = {'slTriggerPx':str(slTriggerPx),'slOrdPx':'-1'}                     
         res = self.trade.place_order(instId=symbol,tdMode='cross',side=side,ordType='market',sz=contract_count,attachAlgoOrds=attachAlgoOrds)
-        print(res)            
-            
+        print(res)
+    def close_position(self,symbol:str,direction:str):
+        position = self.get_positions(symbol=symbol)
+        if not position:
+            position_side = None
+        elif float(position['pos']) < 0:
+            position_side = 'short'
+        elif float(position['pos']) > 0:
+            position_side = 'long'
+        if position and position_side == direction:
+            # 平仓
+            close_side = 'sell' if position_side == 'long' else 'buy'
+            print(f'准备关闭{position_side}订单,close_side:{close_side}')
+            print(f'direction:{direction},position_side:{position_side}')
+            res = self.trade.place_order(instId=symbol,tdMode='cross',ordType='market',side=close_side,sz=abs(float(position['pos'])))
+            print(f'关闭订单结果:{res}')
+            self.trade.cancel_multiple_orders({'instId':symbol})
+            self.trade
+            pass
