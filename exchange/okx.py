@@ -4,7 +4,7 @@ from okx.MarketData import MarketAPI
 from okx.Trade import TradeAPI
 from okx.Account import AccountAPI
 from okx.Grid import GridAPI
-from pandas_ta import pd
+import pandas as pd
 from okx.PublicData import PublicAPI
 
 
@@ -313,8 +313,6 @@ class OKXExchange:
             res = self.trade.place_order(instId=symbol,tdMode='cross',ordType='market',side=close_side,sz=abs(float(position['pos'])))
             print(f'关闭订单结果:{res}')
             self.trade.cancel_multiple_orders({'instId':symbol})
-            self.trade
-            pass
         elif position_side == direction:
             return
         
@@ -348,5 +346,3 @@ class OKXExchange:
             res = self.trade.place_order(instId=symbol,tdMode='cross',ordType='market',side=close_side,sz=abs(float(position['pos'])))
             print(f'关闭订单结果:{res}')
             self.trade.cancel_multiple_orders({'instId':symbol})
-            self.trade
-            pass

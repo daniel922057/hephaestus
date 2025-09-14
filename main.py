@@ -83,7 +83,7 @@ if __name__ == "__main__":
     schedule.every().day.at("12:01").do(job)
     schedule.every().day.at("16:01").do(job)
     schedule.every().day.at("20:01").do(job)
-    schedule.every().minute.at("10").do(check_stop_job)
+    schedule.every().minute.at(":10").do(check_stop_job)
     job()
     while True:
         schedule.run_pending()
