@@ -21,17 +21,18 @@ def main():
     atr_value = df['ATR'].iloc[-1] if 'ATR' in df.columns else None
     print(f"当前ATR值: {atr_value}")
     signal = indicators.supertrend_summary(df=df)
+    supertrend = signal.supertrend
     # signal = Signal(trend=1, strength=Strength.STRONG)
-    print(f'trend:{signal.trend},strength:{signal.strength}')
+    print(f'trend:{signal.trend},strength:{signal.strength},supertrend:{supertrend}')
     # 持仓逻辑
     if signal.trend == 1:
-        okx_client.open_position(symbol=symbol,direction='long',amount=amount,leverage=leverage)
+        okx_client.open_position(symbol=symbol,direction='long',amount=amount,leverage=leverage,slTriggerPx=supertrend)
         # 开多网格
         okx_client.open_grid_if_not_exist(symbol=symbol,direction='long',amount=grid_amount,leverage=grid_leverage,atr=atr_value)
         #关闭做空网格
         okx_client.close_grid_if_exist(symbol=symbol,direction='short')
     elif signal.trend == -1:
-        okx_client.open_position(symbol=symbol,direction='short',amount=amount,leverage=leverage)
+        okx_client.open_position(symbol=symbol,direction='short',amount=amount,leverage=leverage,slTriggerPx=supertrend)
         # 开空网格
         okx_client.open_grid_if_not_exist(symbol=symbol,direction='short',amount=grid_amount,leverage=grid_leverage,atr=atr_value)
         # 关闭做多网格
@@ -83,7 +84,6 @@ if __name__ == "__main__":
     schedule.every().day.at("12:01").do(job)
     schedule.every().day.at("16:01").do(job)
     schedule.every().day.at("20:01").do(job)
-    schedule.every().minute.at(":10").do(check_stop_job)
     job()
     while True:
         schedule.run_pending()

@@ -12,9 +12,10 @@ class Strength(Enum):
 
 
 class Signal:
-    def __init__(self, trend: int, strength: Strength):
+    def __init__(self, trend: int, strength: Strength, supertrend: float = None):
         self.trend = trend  # 趋势
         self.strength = strength  # 趋势强度
+        self.supertrend = supertrend  # supertrend值
         
 
 class TechnicalIndicators:
@@ -79,7 +80,8 @@ class TechnicalIndicators:
         df = self.calculate_supertrend(df=df)
         recent_supertrend_values = df['supertrend'].tail(3)
         strength = Strength.WEAK if recent_supertrend_values.nunique() == 1 else Strength.STRONG
-        return Signal(trend=df['trend'].iloc[-1], strength=strength)
+        supertrend_value = df['supertrend'].iloc[-1]  # 获取最近的supertrend值
+        return Signal(trend=df['trend'].iloc[-1], strength=strength, supertrend=supertrend_value)
     
     def atr(self,df: pd.DataFrame):
         """

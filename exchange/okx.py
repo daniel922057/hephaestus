@@ -263,7 +263,7 @@ class OKXExchange:
                 algoOrdType='contract_grid',  # 网格订单类型
                 maxPx=str(maxPx),  # 上限价格
                 minPx=str(minPx),  # 下限价格
-                gridNum=str(30),  # 网格数量
+                gridNum=str(20),  # 网格数量
                 runType='1',  # 运行类型：1=立即运行
                 sz=str(amount),  # 计价币数量（USDT）
                 direction=direction,  # 方向
@@ -294,7 +294,7 @@ class OKXExchange:
             return result[0]
         return None
     
-    def open_position(self,symbol:str,direction:str,amount:float,leverage:int):
+    def open_position(self,symbol:str,direction:str,amount:float,leverage:int,slTriggerPx:float):
         position = self.get_positions(symbol=symbol)
         side = 'buy' if direction == 'long' else 'sell'
         position_side = None
@@ -305,6 +305,7 @@ class OKXExchange:
         elif float(position['pos']) > 0:
             position_side = 'long'
         self.account.set_leverage(instId=symbol,lever=str(leverage),mgnMode='cross')
+        print(f"position_side:{position_side},direction:{direction}")
         if position_side and position_side != direction:
             # 平仓
             close_side = 'sell' if position_side == 'long' else 'buy'
@@ -314,6 +315,8 @@ class OKXExchange:
             print(f'关闭订单结果:{res}')
             self.trade.cancel_multiple_orders({'instId':symbol})
         elif position_side == direction:
+            print(f"更新止损:{slTriggerPx}")
+            self.update_stop_price(symbol=symbol,slTriggerPx=slTriggerPx)
             return
         
         ticker_result = self.market_data.get_ticker(instId=symbol)
@@ -326,7 +329,6 @@ class OKXExchange:
                             unit='usds'                  # 币单位
                         )
         contract_count =convert_result.get('data', [])[0].get('sz', '0')
-        slTriggerPx = current_price * 0.9 if direction == 'long' else  current_price*1.1
         attachAlgoOrds = {'slTriggerPx':str(slTriggerPx),'slOrdPx':'-1'}                     
         res = self.trade.place_order(instId=symbol,tdMode='cross',side=side,ordType='market',sz=contract_count,attachAlgoOrds=attachAlgoOrds)
         print(res)
@@ -346,3 +348,13 @@ class OKXExchange:
             res = self.trade.place_order(instId=symbol,tdMode='cross',ordType='market',side=close_side,sz=abs(float(position['pos'])))
             print(f'关闭订单结果:{res}')
             self.trade.cancel_multiple_orders({'instId':symbol})
+    def update_stop_price(self,symbol: str,slTriggerPx:float):
+        orders = self.trade.order_algos_list(ordType='conditional',instId=symbol)['data']
+        if orders:
+            algoId = orders[0]['algoId']
+            print(f"准备修改止损:{algoId}")
+        else:
+            print(f"没有找到 {symbol} 的订单，无法更新止损价。")
+            return
+        res = self.trade.amend_algo_order(instId=symbol,algoId=algoId,newSlTriggerPx=slTriggerPx,newSlOrdPx='-1',newSlTriggerPxType='mark',newTpTriggerPxType='mark',newTpTriggerPx='0')
+        print(res)
