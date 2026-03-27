@@ -64,7 +64,7 @@ class OKXExchange:
     def get_kline_data(self, 
                       symbol: str, 
                       bar: str = "1m", 
-                      limit: int = 100,
+                      limit: int = 200,
                       after: Optional[str] = None,
                       before: Optional[str] = None) -> List[Dict]:
         """
@@ -241,7 +241,7 @@ class OKXExchange:
                     print('关闭网格提交成')
                 else:
                     print(f'关闭网格失败:{result}')
-    def open_grid_if_not_exist(self,symbol:str,direction:str,amount, atr:float,leverage:int):
+    def open_grid_if_not_exist(self,symbol:str,direction:str,amount, atr:float,leverage:int,supertrend:float):
         orders = self.get_grid_orders(symbol=symbol).get('orders')
         matching_orders = [order for order in orders if order.get('direction') == direction]
         if not matching_orders:
@@ -252,9 +252,12 @@ class OKXExchange:
             if direction == 'long':
                 minPx = price - 3 * atr
                 maxPx = price + 6 * atr
-            else:
+            elif direction == 'short':
                 minPx = price - 6 * atr
                 maxPx = price + 3 * atr
+            else:
+                minPx = supertrend - 6 * atr
+                maxPx = supertrend + 6 * atr
             # 创建网格的逻辑
             slTriggerPx = minPx-100 if direction == 'long' else maxPx+100
             tpTriggerPx = maxPx + 100 if direction == 'long' else minPx- 100
@@ -294,7 +297,7 @@ class OKXExchange:
             return result[0]
         return None
     
-    def open_position(self,symbol:str,direction:str,amount:float,leverage:int,slTriggerPx:float):
+    def open_position(self,symbol:str,direction:str,amount:float,leverage:int,frame_open_price:float,atr:float,allow_open:bool):
         position = self.get_positions(symbol=symbol)
         side = 'buy' if direction == 'long' else 'sell'
         position_side = None
@@ -313,12 +316,14 @@ class OKXExchange:
             print(f'direction:{direction},position_side:{position_side}')
             res = self.trade.place_order(instId=symbol,tdMode='cross',ordType='market',side=close_side,sz=abs(float(position['pos'])))
             print(f'关闭订单结果:{res}')
-            self.trade.cancel_multiple_orders({'instId':symbol})
         elif position_side == direction:
-            print(f"更新止损:{slTriggerPx}")
-            self.update_stop_price(symbol=symbol,slTriggerPx=slTriggerPx)
+            print("准备更新止损")
+            # self.update_stop_price(symbol=symbol,frame_open_price=frame_open_price,atr=atr,direction=direction,sz=abs(float(position['pos'])))
             return
-        
+        if not allow_open:
+            print('不满足开仓条件')
+            return
+        self.cancel_stop_loss_order(symbol=symbol)
         ticker_result = self.market_data.get_ticker(instId=symbol)
         current_price = float(ticker_result['data'][0]['last'])
         convert_result = self.public.get_convert_contract_coin(
@@ -328,6 +333,10 @@ class OKXExchange:
                             px=str(current_price),       # 当前价格
                             unit='usds'                  # 币单位
                         )
+        if direction == 'long':
+            slTriggerPx = frame_open_price - 2 * atr
+        else:
+            slTriggerPx = frame_open_price + 2 * atr
         contract_count =convert_result.get('data', [])[0].get('sz', '0')
         attachAlgoOrds = {'slTriggerPx':str(slTriggerPx),'slOrdPx':'-1'}                     
         res = self.trade.place_order(instId=symbol,tdMode='cross',side=side,ordType='market',sz=contract_count,attachAlgoOrds=attachAlgoOrds)
@@ -348,13 +357,79 @@ class OKXExchange:
             res = self.trade.place_order(instId=symbol,tdMode='cross',ordType='market',side=close_side,sz=abs(float(position['pos'])))
             print(f'关闭订单结果:{res}')
             self.trade.cancel_multiple_orders({'instId':symbol})
-    def update_stop_price(self,symbol: str,slTriggerPx:float):
-        orders = self.trade.order_algos_list(ordType='conditional',instId=symbol)['data']
-        if orders:
-            algoId = orders[0]['algoId']
-            print(f"准备修改止损:{algoId}")
+    def update_stop_price(self,symbol: str,frame_open_price:float,atr:float,direction:str,sz:float,supertrend:float):
+        open_orders = self.trade.order_algos_list(ordType='conditional',instId=symbol)['data']
+        if open_orders:
+            for order in open_orders:
+                algo_id = order.get('algoId')
+                if algo_id:
+                    cancel_res = self.trade.cancel_algo_order([{'instId': symbol, 'algoId': algo_id}])
+                    print(f"取消止损单 algoId={algo_id} 返回: {cancel_res}")
+        if direction == 'long':
+            slTriggerPx = max(frame_open_price - 2 * atr,supertrend - atr)
         else:
-            print(f"没有找到 {symbol} 的订单，无法更新止损价。")
-            return
-        res = self.trade.amend_algo_order(instId=symbol,algoId=algoId,newSlTriggerPx=slTriggerPx,newSlOrdPx='-1',newSlTriggerPxType='mark',newTpTriggerPxType='mark',newTpTriggerPx='0')
+            slTriggerPx = min(frame_open_price + 2 * atr,supertrend + atr)
+        side = 'sell' if direction == 'long' else 'buy'
+        res = self.trade.place_algo_order(
+            instId=symbol,
+            tdMode='cross',
+            side=side,
+            ordType='conditional',
+            sz=sz,
+            slOrdPx="-1",
+            slTriggerPx=str(slTriggerPx),
+        )
         print(res)
+    # INSERT_YOUR_CODE
+    def place_limit_order(self, symbol: str, direction: str, price: float, amount: float, leverage: int = 1):
+        """
+        挂委托限价单
+
+        :param symbol: 交易对，如 'BTC-USDT-SWAP'
+        :param direction: 'long' 表示开多，'short' 表示开空
+        :param price: 委托价格
+        :param amount: 下单数量（USDT金额，自动转为合约张数）
+        :param leverage: 杠杆倍数
+        """
+        self.cancel_trigger_orders(symbol)
+        side = 'buy' if direction == 'long' else 'sell'
+        ticker_result = self.market_data.get_ticker(instId=symbol)
+        current_price = float(ticker_result['data'][0]['last'])
+        convert_result = self.public.get_convert_contract_coin(
+            type='1',                             # 币转张
+            instId=symbol,
+            sz=str(amount * leverage),            # USDT数量
+            px=str(current_price),                # 当前价格
+            unit='usds'                           # 币单位
+        )
+        contract_count = convert_result.get('data', [])[0].get('sz', '0')
+        print(f"准备挂单: {direction}, 数量: {amount}, 杠杆: {leverage}, 价格: {price}, 张数: {contract_count}")
+        res = self.trade.place_algo_order(
+            instId=symbol,
+            tdMode='cross',
+            side=side,
+            ordType='trigger',
+            sz=contract_count,
+            orderPx="-1",
+            triggerPx=str(price),
+        )
+        print(f"挂单返回: {res}")
+        return res
+
+    def cancel_trigger_orders(self, symbol: str):
+        open_orders = self.trade.order_algos_list(ordType='trigger', instId=symbol)['data']
+        if open_orders:
+            for order in open_orders:
+                algo_id = order.get('algoId')
+                if algo_id:
+                    cancel_res = self.trade.cancel_algo_order([{'instId': symbol, 'algoId': algo_id}])
+                    print(f"取消突破挂单 algoId={algo_id} 返回: {cancel_res}")
+
+    def cancel_stop_loss_order(self,symbol: str):
+        open_orders = self.trade.order_algos_list(ordType='conditional',instId=symbol)['data']
+        if open_orders:
+            for order in open_orders:
+                algo_id = order.get('algoId')
+                if algo_id:
+                    cancel_res = self.trade.cancel_algo_order([{'instId': symbol, 'algoId': algo_id}])
+                    print(f"取消止损单 algoId={algo_id} 返回: {cancel_res}")
