@@ -48,20 +48,22 @@ def main():
         okx_client.open_position(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=amount*0.1,leverage=leverage,frame_open_price=open,atr=atr_value,allow_open=allow_open)
         # 如果没有中性网格开一个
         okx_client.open_grid_if_not_exist(symbol=symbol,direction='neutral',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend) 
-        # TODO 关闭趋势网格
+        #关闭趋势网格
         okx_client.close_grid_if_exist(symbol=symbol,direction = 'short' if signal.trend ==1 else 'long')
         return
     position = okx_client.get_positions(symbol=symbol)
+    print(f"仓位:{position}")
     # 如果没有仓位 挂单
-    # price = df['high'].iloc[-2] if signal.trend == 1 else  df['low'].iloc[-2]
     direction = 'long' if signal.trend ==1 else 'short'
     if not position or float(position['pos']) == 0:
         # INSERT_YOUR_CODE
         print(f"未持仓，准备挂单，信号方向: {direction}，价格: {price}，允许开仓: {allow_open}")
+        okx_client.close_pending_grid_if_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short')
         if allow_open:
             # INSERT_YOUR_CODE
             print(f"挂单条件满足，准备委托下单: symbol={symbol}, direction={direction}, price={price}, amount={amount*0.3}")
             okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=amount*0.3,leverage=leverage)
+            okx_client.open_grid_if_not_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend,triggerPx=price) 
             return
         else:
             # INSERT_YOUR_CODE
@@ -69,11 +71,16 @@ def main():
             print(f"挂单条件不满足，上一高点或低点: {price}，supertrend: {supertrend}，差的绝对值: {supertrend_diff_abs}，2倍ATR值: {2 * atr_value}")
             return
     # 检查仓位是是否是满仓 》 50% 投资金额
-    if float(position['imr']) > 0.5 * amount:
+    if float(position['imr']) > 0.7 * amount:
         # INSERT_YOUR_CODE
         okx_client.cancel_trigger_orders(symbol=symbol)
-        print(f"已满仓（大于50%仓位），仅更新止损价。当前持仓: {position['imr']}，阈值: {0.5 * amount}")
-        okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
+        # 满仓 超级趋势价格已经逾越开仓价格
+        if (signal.trend == 1 and signal.supertrend > float(position['avgPx'])) or (signal.trend == -1 and signal.supertrend < float(position['avgPx'])):
+            okx_client.cancel_stop_loss_order(symbol=symbol)
+            okx_client.update_safe_stop_price(symbol=symbol,low=df['low'].iloc[-2],high=df['high'].iloc[-2],atr=atr_value,direction=direction,supertrend=supertrend)
+        else:
+            print(f"已满仓（大于70%仓位），仅更新止损价。当前持仓: {position['imr']}，阈值: {0.7 * amount}")
+            okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
         return
     else:
         # INSERT_YOUR_CODE
@@ -83,9 +90,10 @@ def main():
     print(f"准备挂单加仓，当前持仓: {position['imr']}，计划加仓金额: {amount*0.5}，计划价格: {price}，信号方向: {direction}，允许开仓: {allow_open}")
     
 
+    okx_client.close_pending_grid_if_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short')
     #开启趋势网格
-    if allow_open:
-        okx_client.open_grid_if_not_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend) 
+    if allow_open:    
+        okx_client.open_grid_if_not_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend,triggerPx=price) 
     
     
     
@@ -104,9 +112,13 @@ def main():
 
     if allow_open and allow_add_position:
         # INSERT_YOUR_CODE
-        print(f"[加仓] 满足挂单条件 | 当前持仓IMR: {position['imr']} | 加仓金额: {amount*0.5} | 计划价格: {price} | 方向: {direction}")
+        add_position_amount = amount*0.5
+        if float(position['imr']) < 0.2 * amount:
+            add_position_amount = amount*0.7
+
+        print(f"[加仓] 满足挂单条件 | 当前持仓IMR: {position['imr']} | 加仓金额: {add_position_amount} | 计划价格: {price} | 方向: {direction}")
         okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
-        okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=amount*0.5,leverage=leverage)
+        okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=add_position_amount,leverage=leverage)
         
     elif allow_open and  float(position['imr']) < 0.2 * amount:
         print(f"[加仓] 满足挂单条件 加仓两层 | 当前持仓IMR: {position['imr']} | 加仓金额: {amount*0.2} | 计划价格: {price} | 方向: {direction}")
@@ -118,7 +130,6 @@ def main():
         okx_client.cancel_trigger_orders(symbol=symbol)
         print(f"加仓挂单条件不满足，上一高点或低点: {price}，supertrend: {supertrend}，差的绝对值: {supertrend_diff_abs}，2倍ATR值: {2 * atr_value}")
         okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
-
 
 def job():
     try:

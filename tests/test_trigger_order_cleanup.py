@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from exchange.okx import OKXExchange
+from exchange.okx import CompatibleGridAPI, OKXExchange
 from indicators import Signal, Strength
 
 
@@ -80,6 +80,28 @@ class TriggerOrderCleanupTests(unittest.TestCase):
         exchange.cancel_trigger_orders("BTC-USDT-SWAP")
 
         self.assertEqual(exchange.trade.cancel_algo_order.call_count, 2)
+
+    def test_compatible_grid_api_passes_trigger_params_through(self):
+        grid = CompatibleGridAPI.__new__(CompatibleGridAPI)
+        grid._request_with_params = MagicMock(return_value={"code": "0"})
+
+        result = grid.grid_order_algo(
+            instId="BTC-USDT-SWAP",
+            algoOrdType="contract_grid",
+            maxPx="110000",
+            minPx="90000",
+            gridNum="20",
+            runType="1",
+            sz="300",
+            direction="long",
+            lever="5",
+            basePos=True,
+            triggerParams={"triggerPx": "100000"},
+        )
+
+        self.assertEqual(result, {"code": "0"})
+        request_params = grid._request_with_params.call_args.args[2]
+        self.assertEqual(request_params["triggerParams"], {"triggerPx": "100000"})
 
 
 if __name__ == "__main__":

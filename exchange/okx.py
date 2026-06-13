@@ -1,11 +1,60 @@
 import os
-from typing import List, Dict, Optional
+from typing import Any, Dict, List, Optional
 from okx.MarketData import MarketAPI
 from okx.Trade import TradeAPI
 from okx.Account import AccountAPI
 from okx.Grid import GridAPI
+from okx.consts import GRID_ORDER_ALGO, POST
 import pandas as pd
 from okx.PublicData import PublicAPI
+
+
+class CompatibleGridAPI(GridAPI):
+    """Local compatibility shim for newer OKX grid params."""
+
+    def grid_order_algo(
+        self,
+        instId: str = "",
+        algoOrdType: str = "",
+        maxPx: str = "",
+        minPx: str = "",
+        gridNum: str = "",
+        runType: str = "",
+        tpTriggerPx: str = "",
+        slTriggerPx: str = "",
+        tag: str = "",
+        quoteSz: str = "",
+        baseSz: str = "",
+        sz: str = "",
+        direction: str = "",
+        lever: str = "",
+        basePos: str = "",
+        triggerParams: Optional[Dict[str, Any]] = None,
+        **extra_params: Any,
+    ):
+        params = {
+            "instId": instId,
+            "algoOrdType": algoOrdType,
+            "maxPx": maxPx,
+            "minPx": minPx,
+            "gridNum": gridNum,
+            "runType": runType,
+            "tpTriggerPx": tpTriggerPx,
+            "slTriggerPx": slTriggerPx,
+            "tag": tag,
+            "quoteSz": quoteSz,
+            "baseSz": baseSz,
+            "sz": sz,
+            "direction": direction,
+            "lever": lever,
+            "basePos": basePos,
+        }
+        if triggerParams is not None:
+            params["triggerParams"] = triggerParams
+        for key, value in extra_params.items():
+            if value is not None:
+                params[key] = value
+        return self._request_with_params(POST, GRID_ORDER_ALGO, params)
 
 
 class OKXExchange:
@@ -53,7 +102,7 @@ class OKXExchange:
             debug=True,
             flag=self.flag
         )
-        self.grid = GridAPI(
+        self.grid = CompatibleGridAPI(
             api_key=self.api_key,
             api_secret_key=self.secret_key,
             passphrase=self.passphrase,
@@ -230,21 +279,47 @@ class OKXExchange:
                 'success': False,
                 'error': f'查询网格订单失败: {str(e)}'
                 }
-    def close_grid_if_exist(self,symbol:str,direction:str):
+    def close_pending_grid_if_exist(self,symbol:str,direction:str):
+        # INSERT_YOUR_CODE
+        print(f"[close_pending_grid_if_exist] 检查是否有方向为 {direction} 的网格需要关闭, symbol: {symbol}, direction: {direction}")
         orders = self.get_grid_orders(symbol=symbol).get('orders')
         if not orders:
             return
         for order in orders:
-            if order.get('direction') == direction:
+            if order.get('direction') == direction and order.get('state') == 'pending_signal':
+                # INSERT_YOUR_CODE
+                print(f"[close_pending_grid_if_exist] 检测到方向为 {direction} 的网格，准备关闭: algoId={order.get('algoId')},orderStats={order.get('state')}")
                 result = self.grid.grid_stop_order_algo(algoId=order.get('algoId'),instId=symbol,algoOrdType='contract_grid',stopType='1')
                 if result.get('code') == '0':
                     print('关闭网格提交成')
                 else:
                     print(f'关闭网格失败:{result}')
-    def open_grid_if_not_exist(self,symbol:str,direction:str,amount, atr:float,leverage:int,supertrend:float):
+
+    def close_grid_if_exist(self,symbol:str,direction:str):
+        # INSERT_YOUR_CODE
+        print(f"[close_grid_if_exist] 检查是否有方向为 {direction} 的网格需要关闭, symbol: {symbol}, direction: {direction}")
+        orders = self.get_grid_orders(symbol=symbol).get('orders')
+        if not orders:
+            return
+        for order in orders:
+            if order.get('direction') == direction:
+                # INSERT_YOUR_CODE
+                print(f"[close_grid_if_exist] 检测到方向为 {direction} 的网格，准备关闭: algoId={order.get('algoId')}")
+                result = self.grid.grid_stop_order_algo(algoId=order.get('algoId'),instId=symbol,algoOrdType='contract_grid',stopType='1')
+                if result.get('code') == '0':
+                    print('关闭网格提交成')
+                else:
+                    print(f'关闭网格失败:{result}')
+    def open_grid_if_not_exist(self,symbol:str,direction:str,amount, atr:float,leverage:int,supertrend:float,triggerPx=None):
+        # INSERT_YOUR_CODE
+        print(f"[open_grid_if_not_exist] 开始处理: symbol={symbol}, direction={direction}, amount={amount}, atr={atr}, leverage={leverage}, supertrend={supertrend}, triggerPx={triggerPx}")
         orders = self.get_grid_orders(symbol=symbol).get('orders')
         matching_orders = [order for order in orders if order.get('direction') == direction]
+        # INSERT_YOUR_CODE
+        print(f"[open_grid_if_not_exist] 当前同方向网格数量: {len(matching_orders)}")
         if not matching_orders:
+            # INSERT_YOUR_CODE
+            print(f"[open_grid_if_not_exist] 未检测到方向为 {direction} 的网格，准备创建新网格...")
             ticker_result = self.market_data.get_ticker(instId=symbol)
             price = float(ticker_result['data'][0]['last'])
             maxPx = 0
@@ -259,8 +334,25 @@ class OKXExchange:
                 minPx = supertrend - 6 * atr
                 maxPx = supertrend + 6 * atr
             # 创建网格的逻辑
-            slTriggerPx = minPx-100 if direction == 'long' else maxPx+100
-            tpTriggerPx = maxPx + 100 if direction == 'long' else minPx- 100
+            if direction == 'long':
+                slTriggerPx = minPx - 100
+                tpTriggerPx = maxPx + 100
+            elif direction == 'short':
+                slTriggerPx = maxPx + 100
+                tpTriggerPx = minPx - 100
+            else:  # 中性网格
+                # 对于中性网格，可以让止损和止盈距离更加均衡，基于supertrend的位置
+                slTriggerPx = minPx - 100
+                tpTriggerPx = maxPx + 100
+            triggerParams = None
+            if triggerPx is not None:
+                triggerParams = [
+                    {
+                        "triggerAction": "start",
+                        "triggerStrategy": "price",
+                        "triggerPx": triggerPx
+                    }
+                ]
             result = self.grid.grid_order_algo(
                 instId=symbol,
                 algoOrdType='contract_grid',  # 网格订单类型
@@ -273,8 +365,11 @@ class OKXExchange:
                 lever=str(leverage),  # 杠杆
                 basePos=True,
                 slTriggerPx=str(slTriggerPx),
-                tpTriggerPx=str(tpTriggerPx)
+                tpTriggerPx=str(tpTriggerPx),
+                triggerParams=triggerParams
             )
+            # INSERT_YOUR_CODE
+            print(f"[open_grid_if_not_exist] 网格订单接口返回: {result}")
             if result.get('code') == '0':
                 print('网格创建成功')
             else:
@@ -363,12 +458,13 @@ class OKXExchange:
             for order in open_orders:
                 algo_id = order.get('algoId')
                 if algo_id:
-                    cancel_res = self.trade.cancel_algo_order([{'instId': symbol, 'algoId': algo_id}])
-                    print(f"取消止损单 algoId={algo_id} 返回: {cancel_res}")
+                    if (direction == 'long' and float(order.get('slTriggerPx')) < supertrend) or (direction == 'short' and float(order.get('slTriggerPx')) > supertrend):
+                        cancel_res = self.trade.cancel_algo_order([{'instId': symbol, 'algoId': algo_id}])
+                        print(f"取消止损单 algoId={algo_id} 返回: {cancel_res}")
         if direction == 'long':
-            slTriggerPx = max(frame_open_price - 2 * atr,supertrend - atr)
+            slTriggerPx = supertrend - atr
         else:
-            slTriggerPx = min(frame_open_price + 2 * atr,supertrend + atr)
+            slTriggerPx = supertrend + atr
         side = 'sell' if direction == 'long' else 'buy'
         res = self.trade.place_algo_order(
             instId=symbol,
@@ -380,6 +476,51 @@ class OKXExchange:
             slTriggerPx=str(slTriggerPx),
         )
         print(res)
+    def update_safe_stop_price(self,symbol: str,low:float,high:float,atr:float,direction:str,supertrend:float):
+        if direction == 'long':
+            safe_slTriggerPx = supertrend + 2*atr
+        else:
+            safe_slTriggerPx = supertrend - 2*atr
+        open_orders = self.trade.order_algos_list(ordType='conditional',instId=symbol)['data']
+        
+        if open_orders:
+            for order in open_orders:
+                algo_id = order.get('algoId')
+                cancel_res = self.trade.cancel_algo_order([{'instId': symbol, 'algoId': algo_id}])
+                print(f"取消止损单 algoId={algo_id} 返回: {cancel_res}")
+                       
+        if direction == 'long':
+            slTriggerPx = supertrend - atr
+        else:
+            slTriggerPx = supertrend + atr
+        side = 'sell' if direction == 'long' else 'buy'
+        position = self.get_positions(symbol=symbol)
+        pos = abs(float(position['pos']))
+        reduce_sz = round(pos * 0.625,2)
+        final_stop_sz = round(pos - reduce_sz,2)
+        print(f"pos:{pos},reduce_sz:{reduce_sz},final_stop_sz:{final_stop_sz}")
+        # safe stop reduce to 30%
+        reduce_limt_res = self.trade.place_algo_order(
+                instId=symbol,
+                tdMode='cross',
+                side=side,
+                ordType='conditional',
+                sz=reduce_sz,
+                slOrdPx="-1",
+                slTriggerPx=str(safe_slTriggerPx),
+            )
+        print(f"reduce_limt_res返回: {reduce_limt_res}")
+        # final stop 
+        res = self.trade.place_algo_order(
+                instId=symbol,
+                tdMode='cross',
+                side=side,
+                ordType='conditional',
+                sz=final_stop_sz,
+                slOrdPx="-1",
+                slTriggerPx=str(slTriggerPx),
+            )
+        print(f"stop_limt_res返回: {res}")
     # INSERT_YOUR_CODE
     def place_limit_order(self, symbol: str, direction: str, price: float, amount: float, leverage: int = 1):
         """
