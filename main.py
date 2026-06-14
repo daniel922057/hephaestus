@@ -38,13 +38,13 @@ def main():
     price = df['high'].iloc[-2] if signal.trend == 1 else  df['low'].iloc[-2]
     supertrend_diff_abs = abs(price - supertrend)
     print(f"上一高点或低点: {price}，supertrend: {supertrend}，差的绝对值: {supertrend_diff_abs}")
-    print(f"2倍ATR值: {2 * atr_value},supertrend*2%:{supertrend * 0.02}")
-    allow_open = (supertrend_diff_abs < 2 * atr_value) or supertrend_diff_abs < supertrend * 0.02
+    print(f"2倍ATR值: {2 * atr_value},supertrend*2%:{supertrend * 0.025}")
+    allow_open = (supertrend_diff_abs < 2 * atr_value) or supertrend_diff_abs < supertrend * 0.025
     if signal.is_reversal:
         supertrend_diff_abs = abs(open - signal.before_reversal_supertrend)
         print(f"[转折信号] 当前K线open: {open}，上次反转前supertrend: {signal.before_reversal_supertrend}，差的绝对值: {supertrend_diff_abs}")
-        allow_open = (supertrend_diff_abs < 2 * atr_value) or supertrend_diff_abs < supertrend * 0.02
-        print(f"[转折信号] 开仓判定条件: supertrend_diff_abs < 2 * ATR ({2 * atr_value}) or supertrend_diff_abs < supertrend*2% ({supertrend * 0.02})，allow_open: {allow_open}")
+        allow_open = (supertrend_diff_abs < 2 * atr_value) or supertrend_diff_abs < supertrend * 0.025
+        print(f"[转折信号] 开仓判定条件: supertrend_diff_abs < 2 * ATR ({2 * atr_value}) or supertrend_diff_abs < supertrend*2% ({supertrend * 0.025})，allow_open: {allow_open}")
         okx_client.open_position(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=amount*0.1,leverage=leverage,frame_open_price=open,atr=atr_value,allow_open=allow_open)
         # 如果没有中性网格开一个
         okx_client.open_grid_if_not_exist(symbol=symbol,direction='neutral',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend) 
