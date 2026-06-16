@@ -340,10 +340,9 @@ class OKXExchange:
             elif direction == 'short':
                 slTriggerPx = maxPx + 100
                 tpTriggerPx = minPx - 100
-            else:  # 中性网格
-                # 对于中性网格，可以让止损和止盈距离更加均衡，基于supertrend的位置
-                slTriggerPx = minPx - 100
-                tpTriggerPx = maxPx + 100
+            else:
+                slTriggerPx = None
+                tpTriggerPx = None
             triggerParams = None
             if triggerPx is not None:
                 triggerParams = [
@@ -353,21 +352,23 @@ class OKXExchange:
                         "triggerPx": triggerPx
                     }
                 ]
-            result = self.grid.grid_order_algo(
-                instId=symbol,
-                algoOrdType='contract_grid',  # 网格订单类型
-                maxPx=str(maxPx),  # 上限价格
-                minPx=str(minPx),  # 下限价格
-                gridNum=str(20),  # 网格数量
-                runType='1',  # 运行类型：1=立即运行
-                sz=str(amount),  # 计价币数量（USDT）
-                direction=direction,  # 方向
-                lever=str(leverage),  # 杠杆
-                basePos=True,
-                slTriggerPx=str(slTriggerPx),
-                tpTriggerPx=str(tpTriggerPx),
-                triggerParams=triggerParams
-            )
+            grid_params = {
+                'instId': symbol,
+                'algoOrdType': 'contract_grid',
+                'maxPx': str(maxPx),
+                'minPx': str(minPx),
+                'gridNum': str(20),
+                'runType': '1',
+                'sz': str(amount),
+                'direction': direction,
+                'lever': str(leverage),
+                'basePos': True,
+                'triggerParams': triggerParams
+            }
+            if direction != 'neutral':
+                grid_params['slTriggerPx'] = str(slTriggerPx)
+                grid_params['tpTriggerPx'] = str(tpTriggerPx)
+            result = self.grid.grid_order_algo(**grid_params)
             # INSERT_YOUR_CODE
             print(f"[open_grid_if_not_exist] 网格订单接口返回: {result}")
             if result.get('code') == '0':
@@ -392,7 +393,7 @@ class OKXExchange:
             return result[0]
         return None
     
-    def open_position(self,symbol:str,direction:str,amount:float,leverage:int,frame_open_price:float,atr:float,allow_open:bool):
+    def open_position(self,symbol:str,direction:str,amount:float,leverage:int,supertrend:float,atr:float,allow_open:bool):
         position = self.get_positions(symbol=symbol)
         side = 'buy' if direction == 'long' else 'sell'
         position_side = None
@@ -429,9 +430,9 @@ class OKXExchange:
                             unit='usds'                  # 币单位
                         )
         if direction == 'long':
-            slTriggerPx = frame_open_price - 2 * atr
+            slTriggerPx = supertrend - atr
         else:
-            slTriggerPx = frame_open_price + 2 * atr
+            slTriggerPx = supertrend + atr
         contract_count =convert_result.get('data', [])[0].get('sz', '0')
         attachAlgoOrds = {'slTriggerPx':str(slTriggerPx),'slOrdPx':'-1'}                     
         res = self.trade.place_order(instId=symbol,tdMode='cross',side=side,ordType='market',sz=contract_count,attachAlgoOrds=attachAlgoOrds)

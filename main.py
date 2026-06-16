@@ -45,7 +45,7 @@ def main():
         print(f"[转折信号] 当前K线open: {open}，上次反转前supertrend: {signal.before_reversal_supertrend}，差的绝对值: {supertrend_diff_abs}")
         allow_open = (supertrend_diff_abs < 2 * atr_value) or supertrend_diff_abs < supertrend * 0.025
         print(f"[转折信号] 开仓判定条件: supertrend_diff_abs < 2 * ATR ({2 * atr_value}) or supertrend_diff_abs < supertrend*2% ({supertrend * 0.025})，allow_open: {allow_open}")
-        okx_client.open_position(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=amount*0.1,leverage=leverage,frame_open_price=open,atr=atr_value,allow_open=allow_open)
+        okx_client.open_position(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=amount*0.1,leverage=leverage,supertrend=supertrend,atr=atr_value,allow_open=allow_open)
         # 如果没有中性网格开一个
         okx_client.open_grid_if_not_exist(symbol=symbol,direction='neutral',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend) 
         #关闭趋势网格
