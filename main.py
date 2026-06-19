@@ -88,13 +88,7 @@ def main():
     # 准备挂单加仓
     # INSERT_YOUR_CODE
     print(f"准备挂单加仓，当前持仓: {position['imr']}，计划加仓金额: {amount*0.5}，计划价格: {price}，信号方向: {direction}，允许开仓: {allow_open}")
-    
-
-    okx_client.close_pending_grid_if_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short')
-    #开启趋势网格
-    if allow_open:    
-        okx_client.open_grid_if_not_exist(symbol=symbol,direction='long' if signal.trend ==1 else 'short',amount=grid_amount,leverage=grid_leverage,atr=atr_value,supertrend=supertrend,triggerPx=price) 
-    
+        
     
     
     allow_add_position = False
