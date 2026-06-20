@@ -94,7 +94,7 @@ def main():
     
     
     allow_add_position = False
-    if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend):
+    if (signal.trend == 1 and signal.supertrend > float(position['avgPx'])) or (signal.trend == -1 and signal.supertrend < float(position['avgPx'])):
         # INSERT_YOUR_CODE
         print(f"允许加仓条件判断: trend={signal.trend}, supertrend={signal.supertrend}, 持仓均价={position['avgPx']}")
         allow_add_position = True
