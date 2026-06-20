@@ -108,7 +108,8 @@ def main():
 
     if float(position['imr']) < 0.2 * amount:
         okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
-        if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend and signal.last_supertrend < single.last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend and signal.last_supertrend > single.last_reversal_supertrend):
+        if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend):
+            okx_client.cancel_trigger_orders(symbol=symbol)
             okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=0.2 * amount,leverage=leverage)
             return
 
