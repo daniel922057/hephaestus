@@ -1,5 +1,7 @@
 import os
 
+from numpy import single
+
 
 from exchange.okx import OKXExchange
 from indicators import TechnicalIndicators
@@ -27,11 +29,12 @@ def main():
     print(f"当前ATR值: {atr_value}")
     signal = indicators.supertrend_summary(df=df)
     supertrend = signal.supertrend
+    last_reversal_supertrend = signal.last_reversal_supertrend
     open = df['open'].iloc[-1]
     print(f'open:{open}')
     last_kline_diff = df['close'].iloc[-2] -  df['open'].iloc[-2]
     print(last_kline_diff)
-    print(f'trend:{signal.trend},strength:{signal.strength},supertrend:{supertrend}')
+    print(f'trend:{signal.trend},strength:{signal.strength},supertrend:{supertrend},last_reversal_supertrend:{signal.last_reversal_supertrend},last_supertrend:{signal.last_supertrend}')
     # 获取当前价格和 supertrend 差 绝对值
     # 获取最新价格
     # current_price = df['close'].iloc[-1]
@@ -75,7 +78,7 @@ def main():
         # INSERT_YOUR_CODE
         okx_client.cancel_trigger_orders(symbol=symbol)
         # 满仓 超级趋势价格已经逾越开仓价格
-        if (signal.trend == 1 and signal.supertrend > float(position['avgPx'])) or (signal.trend == -1 and signal.supertrend < float(position['avgPx'])):
+        if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend):
             okx_client.cancel_stop_loss_order(symbol=symbol)
             okx_client.update_safe_stop_price(symbol=symbol,low=df['low'].iloc[-2],high=df['high'].iloc[-2],atr=atr_value,direction=direction,supertrend=supertrend)
         else:
@@ -91,7 +94,7 @@ def main():
     
     
     allow_add_position = False
-    if (signal.trend == 1 and signal.supertrend > float(position['avgPx'])) or (signal.trend == -1 and signal.supertrend < float(position['avgPx'])):
+    if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend):
         # INSERT_YOUR_CODE
         print(f"允许加仓条件判断: trend={signal.trend}, supertrend={signal.supertrend}, 持仓均价={position['avgPx']}")
         allow_add_position = True
@@ -103,27 +106,25 @@ def main():
         okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
     
 
-    if allow_open and allow_add_position:
+    if float(position['imr']) < 0.2 * amount:
+        okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
+        if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend and signal.last_supertrend < single.last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend and signal.last_supertrend > single.last_reversal_supertrend):
+            okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=0.2 * amount,leverage=leverage)
+            return
+
+    elif allow_open and allow_add_position:
         # INSERT_YOUR_CODE
         add_position_amount = amount*0.5
-        if float(position['imr']) < 0.2 * amount:
-            add_position_amount = amount*0.7
-
         print(f"[加仓] 满足挂单条件 | 当前持仓IMR: {position['imr']} | 加仓金额: {add_position_amount} | 计划价格: {price} | 方向: {direction}")
         okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
         okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=add_position_amount,leverage=leverage)
-        
-    elif allow_open and  float(position['imr']) < 0.2 * amount:
-        print(f"[加仓] 满足挂单条件 加仓两层 | 当前持仓IMR: {position['imr']} | 加仓金额: {amount*0.2} | 计划价格: {price} | 方向: {direction}")
-        # 挂单两层
-        okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
-        okx_client.place_limit_order(symbol=symbol,direction='long' if signal.trend ==1 else 'short',price=price,amount=amount*0.2,leverage=leverage)
     else:
     # INSERT_YOUR_CODE
         okx_client.cancel_trigger_orders(symbol=symbol)
         print(f"加仓挂单条件不满足，上一高点或低点: {price}，supertrend: {supertrend}，差的绝对值: {supertrend_diff_abs}，2倍ATR值: {2 * atr_value}")
         okx_client.update_stop_price(symbol=symbol,frame_open_price=open,atr=atr_value,direction=direction,sz=abs(float(position['pos'])),supertrend=supertrend)
-
+    
+    
 def job():
     try:
         main()

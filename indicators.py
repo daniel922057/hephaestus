@@ -11,12 +11,14 @@ class Strength(Enum):
 
 
 class Signal:
-    def __init__(self, trend: int, strength: Strength, supertrend: float = None, is_reversal: bool = False,before_reversal_supertrend:float = None):
+    def __init__(self, trend: int, strength: Strength, supertrend: float = None, is_reversal: bool = False,before_reversal_supertrend:float = None,last_reversal_supertrend:float = None,last_supertrend:float=None):
         self.trend = trend  # 趋势
         self.strength = strength  # 趋势强度
         self.supertrend = supertrend  # supertrend值
+        self.last_supertrend = last_supertrend
         self.is_reversal = is_reversal 
         self.before_reversal_supertrend =  before_reversal_supertrend# 是否为转折点（上一个supertrend方向和当前方向不一致）
+        self.last_reversal_supertrend = last_reversal_supertrend
         
 
 class TechnicalIndicators:
@@ -84,11 +86,18 @@ class TechnicalIndicators:
         print(df['supertrend'].iloc[-2])
         strength = Strength.WEAK if recent_supertrend_values.nunique() == 1 else Strength.STRONG
         supertrend_value = df['supertrend'].iloc[-1]  # 获取最近的supertrend值
+        current_trend = df['trend'].iloc[-1]
+        opposite_trend = -1 if current_trend == 1 else 1
+        last_reversal_supertrend = None
+        for _, row in df.iloc[:-1].iloc[::-1].iterrows():
+            if row['trend'] == opposite_trend:
+                last_reversal_supertrend = row['supertrend']
+                break
         # INSERT_YOUR_CODE
         print(df[['open', 'supertrend', 'trend']])
         is_reversal = (df['trend'].iloc[-2] != df['trend'].iloc[-3]) if len(df) >= 2 else False        
         print(is_reversal)
-        return Signal(trend=df['trend'].iloc[-1], strength=strength, supertrend=supertrend_value, is_reversal=is_reversal,before_reversal_supertrend=df['supertrend'].iloc[-3])
+        return Signal(trend=current_trend, strength=strength, supertrend=supertrend_value, is_reversal=is_reversal,before_reversal_supertrend=df['supertrend'].iloc[-3],last_reversal_supertrend=last_reversal_supertrend,last_supertrend=df['supertrend'].iloc[-2])
     
     def atr(self,df: pd.DataFrame):
         """
