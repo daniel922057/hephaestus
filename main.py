@@ -75,10 +75,8 @@ def main():
             return
     # 检查仓位是是否是满仓 》 50% 投资金额
     if float(position['imr']) > 0.7 * amount:
-        # INSERT_YOUR_CODE
-        okx_client.cancel_trigger_orders(symbol=symbol)
         # 满仓 超级趋势价格已经逾越开仓价格
-        if (signal.trend == 1 and signal.supertrend > last_reversal_supertrend) or (signal.trend == -1 and signal.supertrend < last_reversal_supertrend):
+        if (signal.trend == 1 and signal.supertrend > float(position['avgPx'])) or (signal.trend == -1 and signal.supertrend < float(position['avgPx'])):
             okx_client.cancel_stop_loss_order(symbol=symbol)
             okx_client.update_safe_stop_price(symbol=symbol,low=df['low'].iloc[-2],high=df['high'].iloc[-2],atr=atr_value,direction=direction,supertrend=supertrend)
         else:
