@@ -97,7 +97,7 @@ class TechnicalIndicators:
         print(df[['open', 'supertrend', 'trend']])
         is_reversal = (df['trend'].iloc[-2] != df['trend'].iloc[-3]) if len(df) >= 2 else False        
         print(is_reversal)
-        return Signal(trend=current_trend, strength=strength, supertrend=supertrend_value, is_reversal=is_reversal,before_reversal_supertrend=df['supertrend'].iloc[-3],last_reversal_supertrend=last_reversal_supertrend,last_supertrend=df['supertrend'].iloc[-2])
+        return Signal(trend=current_trend, strength=strength, supertrend=supertrend_value, is_reversal=is_reversal,before_reversal_supertrend=df['supertrend'].iloc[-3],last_reversal_supertrend=last_reversal_supertrend,last_supertrend=df['supertrend'].iloc[-3])
     
     def atr(self,df: pd.DataFrame):
         """
