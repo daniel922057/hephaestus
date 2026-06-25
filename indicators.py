@@ -85,8 +85,8 @@ class TechnicalIndicators:
         print(df['supertrend'].iloc[-1])
         print(df['supertrend'].iloc[-2])
         strength = Strength.WEAK if recent_supertrend_values.nunique() == 1 else Strength.STRONG
-        supertrend_value = df['supertrend'].iloc[-1]  # 获取最近的supertrend值
-        current_trend = df['trend'].iloc[-1]
+        supertrend_value = df['supertrend'].iloc[-2]  # 获取最近的supertrend值
+        current_trend = df['trend'].iloc[-2]
         opposite_trend = -1 if current_trend == 1 else 1
         last_reversal_supertrend = None
         for _, row in df.iloc[:-1].iloc[::-1].iterrows():

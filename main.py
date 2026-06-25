@@ -25,7 +25,7 @@ def main():
     print(f'data lenth:{len(data)}')
     df = okx_client.convert_kline_to_dataframe(kline_data=data)
     df = indicators.atr(df)
-    atr_value = df['ATR'].iloc[-1] if 'ATR' in df.columns else None
+    atr_value = df['ATR'].iloc[-2] if 'ATR' in df.columns else None
     print(f"当前ATR值: {atr_value}")
     signal = indicators.supertrend_summary(df=df)
     supertrend = signal.supertrend
