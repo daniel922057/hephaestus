@@ -331,8 +331,8 @@ class OKXExchange:
                 minPx = price - 6 * atr
                 maxPx = price + 3 * atr
             else:
-                minPx = supertrend - 6 * atr
-                maxPx = supertrend + 6 * atr
+                minPx = price - 6 * atr
+                maxPx = price + 6 * atr
             # 创建网格的逻辑
             if direction == 'long':
                 slTriggerPx = minPx - 100
